@@ -23,18 +23,21 @@ func GetNewKafkaConnection(topic, groupId string) *KafkaConnection {
 	host := GetEnvProperty("KAFKA_HOST")
 	port := GetEnvProperty("KAFKA_PORT")
 
+	if host == "" {
+		host = "kafka"
+	}
 	if port == "" {
 		port = "9092"
 	}
 
 	url := fmt.Sprintf("%s:%s", host, port)
-
 	fmt.Println("kafka url ", url)
 
 	conn, err := kafka.Dial("tcp", url)
 	if err != nil {
 		panic(fmt.Sprintf("failed to connect to kafka %v", err))
 	}
+
 	// только для разработки
 	DeleteAllTopics(conn)
 	CreateAllTopics(conn)
@@ -49,7 +52,7 @@ func GetNewKafkaConnection(topic, groupId string) *KafkaConnection {
 	kafkaConn := &KafkaConnection{
 		conn:    conn,
 		broker:  url,
-		topic:   url,
+		topic:   topic, // ← Исправлено: topic, а не url!
 		groupId: groupId,
 	}
 
@@ -60,20 +63,23 @@ func GetNewKafkaConnection(topic, groupId string) *KafkaConnection {
 			Balancer: &kafka.LeastBytes{},
 		},
 	)
+
 	return kafkaConn
 }
 
 func (k *KafkaConnection) Connect() (*kafka.Conn, error) {
-	host := GetEnvProperty("kafka_host")
-	port := GetEnvProperty("kafka_port")
+	host := GetEnvProperty("KAFKA_HOST")
+	port := GetEnvProperty("KAFKA_PORT")
 
+	if host == "" {
+		host = "kafka"
+	}
 	if port == "" {
 		port = "9092"
 	}
 
 	url := fmt.Sprintf("%s:%s", host, port)
-
-	fmt.Println("kafka url ", url)
+	fmt.Println("kafka reconnect url ", url)
 
 	conn, err := kafka.Dial("tcp", url)
 	if err != nil {
@@ -81,15 +87,6 @@ func (k *KafkaConnection) Connect() (*kafka.Conn, error) {
 	}
 	logger.Log("kafka has been reconnected")
 	return conn, nil
-}
-
-func (k *KafkaConnection) DeclateTopic() error {
-	conn, err := k.Connect()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	return nil
 }
 
 func (k *KafkaConnection) GetConnection() *kafka.Conn {
@@ -126,16 +123,14 @@ func (k *KafkaConnection) GetReader() *kafka.Reader {
 			Topic:    k.topic,
 			GroupID:  k.groupId,
 			MaxWait:  20 * time.Millisecond,
-			MinBytes: 1e2,  //1KB
+			MinBytes: 1e2,  // 1KB
 			MaxBytes: 10e6, // 10MB
 		},
 	)
 }
 
 func DeleteAllTopics(conn *kafka.Conn) {
-	conn.DeleteTopics(
-		constants.TOPIC_ORDER,
-	)
+	conn.DeleteTopics(constants.TOPIC_ORDER)
 }
 
 func CreateAllTopics(conn *kafka.Conn) {
@@ -154,5 +149,7 @@ func (k *KafkaConnection) Close() {
 			logger.Log(fmt.Sprintf("failed to close kafka writer %v", err))
 		}
 	}
-	k.conn.Close()
+	if k.conn != nil {
+		k.conn.Close()
+	}
 }

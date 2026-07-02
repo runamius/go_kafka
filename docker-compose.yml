@@ -8,10 +8,10 @@ services:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_NODE_ID: 1
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -34,6 +34,7 @@ services:
       net.core.somaxconn: 65535
       net.ipv4.tcp_max_syn_backlog: 65535
 
+
   mongodb:
     image: mongo:latest
     container_name: mongodb
@@ -45,6 +46,14 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: root
     volumes:
       - mongo-data:/data/db
+    restart: unless-stopped
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   order-service:
     container_name: order-service
@@ -55,9 +64,11 @@ services:
       - "8001:8001"
     env_file: ./order-service/.env
     depends_on:
-      - kafka
-      - mongodb
-
+      kafka:
+        condition: service_started
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   kafka-data:

@@ -26,6 +26,7 @@ func (h *OrderHandler) CreateOrder(ctx *gin.Context) {
 		})
 		return
 	}
+
 	id := utils.GetId()
 	payload["_id"] = id
 
@@ -46,13 +47,14 @@ func registerMessagePublisherWorker(id int, publisher *service.IMessagePublisher
 	}
 }
 
-func GetOrderHandler(publisher service.IMessagePublisher) *OrderHandler{
+func GetOrderHandler(publisher service.IMessagePublisher) *OrderHandler {
 	h := &OrderHandler{
 		publisher: publisher,
 	}
-	for i := 0; i < cap(messagePublisherWorker) i++ {
+
+	for i := 0; i < cap(messagePublisherWorker); i++ {
 		go registerMessagePublisherWorker(i, &publisher)
 	}
-	return  h
 
+	return h
 }
